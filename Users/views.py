@@ -2,7 +2,9 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny, IsAdminUser
 from rest_framework_simplejwt.authentication import JWTAuthentication
-from rest_framework import status
+from rest_framework import status, serializers
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer, TokenRefreshSerializer 
+from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
 from .serializers import UserSerializer, UserChangeSerializer
@@ -16,7 +18,35 @@ class Home(APIView):
     def get(self, request):
         content = {'message': 'Hello, World!'}
         return Response(content)
-    
+class CustomTokenRefreshSerializer(TokenRefreshSerializer):
+
+    def validate(self, attrs):
+        # Validate the refresh token as usual
+        data = super().validate(attrs)
+        
+        # Extract the user from the refresh token
+        refresh = RefreshToken(attrs['refresh'])
+        user = User.objects.get(id=refresh['user_id'])
+
+        # Check if the user is active
+        if not user.is_active:
+            raise serializers.ValidationError('User account is inactive.')
+        
+        # Return the validated data (new access token)
+        return data
+
+class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+
+    def validate(self, attrs):
+        # The original validate method returns a dictionary with the tokens if the user is authenticated
+        data = super().validate(attrs)
+        
+        # Check if the user is active
+        if not self.user.is_active:
+            raise serializers.ValidationError('User account is inactive.')
+        
+        # If the user is active, return the token data
+        return data
 
 @api_view(['POST'])
 @permission_classes([AllowAny])

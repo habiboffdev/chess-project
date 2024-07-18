@@ -15,6 +15,6 @@ class UserSerializer(serializers.ModelSerializer):
 class UserChangeSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['age','full_name','country']  # add more fields as needed
+        fields = ['age','full_name','country','is_active','rating']  # add more fields as needed
 
 
