@@ -18,3 +18,6 @@ class UserChangeSerializer(serializers.ModelSerializer):
         fields = ['age','full_name','country','is_active','rating']  # add more fields as needed
 
 
+class ChangePasswordSerializer(serializers.Serializer):
+    current_password = serializers.CharField(required=True)
+    new_password = serializers.CharField(required=True)

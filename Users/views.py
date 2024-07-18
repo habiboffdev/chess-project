@@ -6,9 +6,9 @@ from rest_framework import status, serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer, TokenRefreshSerializer 
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.decorators import api_view, permission_classes
-from .serializers import UserSerializer, UserChangeSerializer
-from Users.models import User
-
+from django.contrib.auth.hashers import check_password
+from .serializers import UserSerializer, UserChangeSerializer, ChangePasswordSerializer
+from Users.models import User   
 
 class Home(APIView):
     authentication_classes = [JWTAuthentication]
@@ -17,6 +17,7 @@ class Home(APIView):
     def get(self, request):
         content = {'message': 'Hello, World!'}
         return Response(content)
+
 class CustomTokenRefreshSerializer(TokenRefreshSerializer):
     def validate(self, attrs):
         # Validate the refresh token as usual
@@ -55,56 +56,111 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         
         return data
 
-@api_view(['POST'])
-@permission_classes([AllowAny])
-def register_user(request):
-    """
-    API view to register a new user.
+class RegisterUser(APIView):
+    permission_classes = [AllowAny]
 
-    Args:
-        request (HttpRequest): The HTTP request object.
+    def post(self, request):
+        """
+        API view to register a new user.
 
-    Returns:
-        Response: The HTTP response object.
-    """
-    serializer = UserSerializer(data=request.data)
-    if serializer.is_valid():
-        serializer.save()
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        Args:
+            request (HttpRequest): The HTTP request object.
 
-@api_view(['GET', 'PUT', 'DELETE'])
-@permission_classes([IsAuthenticated, IsAdminUser])
-def manage_user(request, user_id):
-    """
-    API view to manage a user.
+        Returns:
+            Response: The HTTP response object.
+        """
+        serializer = UserSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    Args:
-        request (HttpRequest): The HTTP request object.
-        user_id (int): The ID of the user to manage.
+class ManageUser(APIView):
+    permission_classes = [IsAuthenticated, IsAdminUser]
 
-    Returns:
-        Response: The HTTP response object.
+    def get(self, request, user_id):
+        """
+        API view to get a user.
 
-    Raises:
-        User.DoesNotExist: If the user with the specified ID does not exist.
-    """
-    try:
-        user = User.objects.get(id=user_id)
-    except User.DoesNotExist:
-        return Response({'error': 'User not found'}, status=404)
+        Args:
+            request (HttpRequest): The HTTP request object.
+            user_id (int): The ID of the user to get.
 
-    if request.method == 'GET':
+        Returns:
+            Response: The HTTP response object.
+
+        Raises:
+            User.DoesNotExist: If the user with the specified ID does not exist.
+        """
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=404)
+
         serializer = UserChangeSerializer(user)
         return Response(serializer.data)
 
-    elif request.method == 'PUT':
+    def put(self, request, user_id):
+        """
+        API view to update a user.
+
+        Args:
+            request (HttpRequest): The HTTP request object.
+            user_id (int): The ID of the user to update.
+
+        Returns:
+            Response: The HTTP response object.
+
+        Raises:
+            User.DoesNotExist: If the user with the specified ID does not exist.
+        """
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=404)
+
         serializer = UserChangeSerializer(user, data=request.data)
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data)
         return Response(serializer.errors, status=400)
 
-    elif request.method == 'DELETE':
+    def delete(self, request, user_id):
+        """
+        API view to delete a user.
+
+        Args:
+            request (HttpRequest): The HTTP request object.
+            user_id (int): The ID of the user to delete.
+
+        Returns:
+            Response: The HTTP response object.
+
+        Raises:
+            User.DoesNotExist: If the user with the specified ID does not exist.
+        """
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=404)
+
         user.delete()
         return Response({'message': 'User deleted'}, status=204)
+
+class ChangePasswordView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = ChangePasswordSerializer(data=request.data)
+        if serializer.is_valid():
+            user = request.user
+            current_password = serializer.validated_data['current_password']
+            new_password = serializer.validated_data['new_password']
+
+            if not check_password(current_password, user.password):
+                return Response({'error': 'Current password is incorrect.'}, status=status.HTTP_400_BAD_REQUEST)
+
+            user.set_password(new_password)
+            user.save()
+            return Response({'message': 'Password changed successfully.'}, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
