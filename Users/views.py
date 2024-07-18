@@ -3,8 +3,8 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny, IsAdminUser
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework import status, serializers
-from rest_framework_simplejwt.serializers import TokenObtainPairSerializer, TokenRefreshSerializer 
-from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from .serializers import CustomTokenObtainPairSerializer, CustomTokenRefreshSerializer
 from rest_framework.decorators import api_view, permission_classes
 from django.contrib.auth.hashers import check_password
 from .serializers import UserSerializer, UserChangeSerializer, ChangePasswordSerializer
@@ -18,44 +18,15 @@ class Home(APIView):
         content = {'message': 'Hello, World!'}
         return Response(content)
 
-class CustomTokenRefreshSerializer(TokenRefreshSerializer):
-    def validate(self, attrs):
-        # Validate the refresh token as usual
-        data = super().validate(attrs)
-        
-        # Extract the user from the refresh token
-        refresh = RefreshToken(attrs['refresh'])
-        user = User.objects.get(id=refresh['user_id'])
+class CustomTokenObtainPairView(TokenObtainPairView):
+    serializer_class = CustomTokenObtainPairSerializer
+    # authentication_classes = []
+    # permission_classes = [AllowAny]    
 
-        # Check if the user is active
-        if not user.is_active:
-            raise serializers.ValidationError('User account is inactive.')
-        
-        # Return the validated data (new access token)
-        return data
-
-class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
-
-    def validate(self, attrs):
-        """
-        Validates the user's attributes and returns the token data if the user is authenticated.
-
-        Args:
-            attrs (dict): The user's attributes.
-
-        Raises:
-            serializers.ValidationError: If the user account is inactive.
-
-        Returns:
-            dict: The token data if the user is active.
-        """
-        data = super().validate(attrs)
-        
-        if not self.user.is_active:
-            raise serializers.ValidationError('User account is inactive.')
-        
-        return data
-
+class CustomTokenRefreshView(TokenRefreshView):
+    serializer_class = CustomTokenRefreshSerializer
+    # authentication_classes = []
+    # permission_classes = [AllowAny]
 class RegisterUser(APIView):
     permission_classes = [AllowAny]
 
