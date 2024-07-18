@@ -37,7 +37,10 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    # My apps
     'Users.apps.UsersConfig',
+    'Chess.apps.ChessConfig',
+    # Third party apps
     'rest_framework',
     'rest_framework_simplejwt',
 
