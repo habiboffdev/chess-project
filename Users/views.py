@@ -7,7 +7,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from .serializers import CustomTokenObtainPairSerializer, CustomTokenRefreshSerializer
 from rest_framework.decorators import api_view, permission_classes
 from django.contrib.auth.hashers import check_password
-from .serializers import UserSerializer, UserChangeSerializer, ChangePasswordSerializer
+from .serializers import UserSerializer, UserChangeSerializer, ChangePasswordSerializer, UserInfoSerializer
 from Users.models import User   
 
 class Home(APIView):
@@ -135,3 +135,47 @@ class ChangePasswordView(APIView):
             user.save()
             return Response({'message': 'Password changed successfully.'}, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class UserListView(APIView):
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    def get(self, request):
+        users = User.objects.all(sort_by='created_at')
+        serializer = UserChangeSerializer(users, many=True)
+        return Response(serializer.data)
+    
+class UserLeaderboardView(APIView):
+    permission_classes = []
+
+    def get(self, request):
+        users = User.objects.all().order_by('-rating')
+        serializer = UserChangeSerializer(users, many=True)
+        return Response(serializer.data)
+    
+class UserInfoView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        serializer = UserInfoSerializer(user)
+        return Response(serializer.data)
+    
+    def put(self, request):
+        user = request.user
+        serializer = UserInfoSerializer(user, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=400)
+
+class GetUserInfoView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, user_id):
+        if str(user_id).isdigit() == False:
+            # return Response({'error': 'Invalid user ID'}, status=400)
+            user = User.objects.get(username=user_id)
+        else:
+            user = User.objects.get(id=user_id)
+        serializer = UserInfoSerializer(user)
+        return Response(serializer.data)

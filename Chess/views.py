@@ -96,7 +96,7 @@ class MatchCreateView(generics.CreateAPIView):
 
 class TournamentLeaderboardView(generics.ListAPIView):
     serializer_class = TournamentLeaderboardSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = []
 
     def get_queryset(self):
         tournament_id = self.kwargs['tournament_id']
@@ -105,13 +105,17 @@ class TournamentLeaderboardView(generics.ListAPIView):
 
 class MatchResultView(generics.UpdateAPIView):
     queryset = Match.objects.all()
-    serializer_class = MatchSerializer
+    # serializer_class = MatchSerializer
     permission_classes = [IsAuthenticated]
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
-        winner = User.objects.get(id=request.data.get('winner'))
+        if instance.winner in [instance.player1, instance.player2] or instance.draw:
+            return Response({"detail": "Match result already reported."}, status=status.HTTP_400_BAD_REQUEST)
         draw = request.data.get('draw', False)
+        winner = instance.winner
+        if not draw:
+            winner = User.objects.get(id=request.data.get('winner'))
         if winner not in [instance.player1, instance.player2] and draw == False:
             return Response({"detail": "Invalid winner."}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -126,13 +130,19 @@ class MatchResultView(generics.UpdateAPIView):
 
 
         if draw == True:
-            update_elo(player1, player2, "draw")
+            change = update_elo(player1, player2, "draw")
         elif winner == player1:
-            update_elo(player1, player2, "player1")
+            change = update_elo(player1, player2, "player1")
         else:
-            update_elo(player2, player1, "player2")
-
+            change = update_elo(player2, player1, "player2")
+        instance.player1_rating_change = change[0]
+        instance.player2_rating_change = change[1]
+        instance.save()
         return Response(status=status.HTTP_200_OK)
+    def get(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = MatchSerializer(instance)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 class TournamentCreateView(generics.CreateAPIView):
     queryset = Tournament.objects.all()
@@ -144,6 +154,7 @@ class TournamentCreateView(generics.CreateAPIView):
 class TournamentListView(generics.ListAPIView):
     queryset = Tournament.objects.all()
     serializer_class = TournamentSerializer
+    permission_classes = []
 
 class TournamentDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Tournament.objects.all()
@@ -163,7 +174,7 @@ class TournamentParticipantCreateView(generics.CreateAPIView):
 
 class TournamentParticipantListView(generics.ListAPIView):
     serializer_class = TournamentParticipantSerializer
-
+    permission_classes = []
     def get_queryset(self):
         tournament_id = self.kwargs['tournament_id']
         return TournamentParticipant.objects.filter(tournament_id=tournament_id)
@@ -176,6 +187,8 @@ class TournamentMatchResultView(generics.UpdateAPIView):
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
+        if instance.winner in [instance.player1, instance.player2] or instance.draw:
+            return Response({"detail": "Match result already reported."}, status=status.HTTP_400_BAD_REQUEST)
         winner_id = request.data.get('winner')
         draw = request.data.get('draw', False)
 
@@ -193,12 +206,19 @@ class TournamentMatchResultView(generics.UpdateAPIView):
 
             TournamentParticipant.objects.filter(tournament=instance.round.tournament, player=winner).update(score=models.F('score') + Constants.SCORE_ADD_FOR_WIN_TOURNAMENT)
         if draw == True:
-            update_elo(instance.player1, instance.player2, "draw")
+            change = update_elo(instance.player1, instance.player2, "draw")
         if winner == instance.player1:
             update_elo(instance.player1, instance.player2, "player1")
         if winner == instance.player2:
             update_elo(instance.player1, instance.player2, "player2")
+        instance.player1_rating_change = change[0]
+        instance.player2_rating_change = change[1]
+        instance.save()
         return Response(status=status.HTTP_200_OK)
+    def get(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = TournamentMatchDetailSerializer(instance)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 class CreateNextRoundView(APIView):
     permission_classes = [IsAuthenticated, IsAdminUser]
 
@@ -230,4 +250,4 @@ class UserCurrentMatchView(APIView):
             return Response({"detail": "No match found for the current round."}, status=status.HTTP_404_NOT_FOUND)
 
         serializer = TournamentMatchDetailSerializer(match)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.data, status=status.HTTP_200_OK) 

@@ -7,15 +7,19 @@ class AvailablePlayerSerializer(serializers.ModelSerializer):
         fields = ['is_available']
 
 class MatchSerializer(serializers.ModelSerializer):
+    # player1 field is not required
+    player1 = serializers.StringRelatedField()
+    player2 = serializers.StringRelatedField()
     class Meta:
         model = Match
-        fields = ['result_reported','winner']
+        fields = "__all__"
 class TournamentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Tournament
         fields = '__all__'
 
 class TournamentParticipantSerializer(serializers.ModelSerializer):
+    player = serializers.StringRelatedField()
     class Meta:
         model = TournamentParticipant
         fields = '__all__'

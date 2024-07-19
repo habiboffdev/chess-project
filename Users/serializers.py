@@ -20,7 +20,7 @@ class UserSerializer(serializers.ModelSerializer):
 class UserChangeSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['age','full_name','country','is_active','rating']  # add more fields as needed
+        fields = ['age','full_name','country','is_active','rating', 'username', 'email']  # add more fields as needed
 
 class ChangePasswordSerializer(serializers.Serializer):
     current_password = serializers.CharField(required=True)
@@ -42,3 +42,8 @@ class CustomTokenRefreshSerializer(TokenRefreshSerializer):
         if not user.is_active:
             raise serializers.ValidationError('User account is inactive.')
         return data
+    
+class UserInfoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['age','full_name','country','is_active','rating', 'username','email']  # add more fields as needed

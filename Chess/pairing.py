@@ -44,23 +44,32 @@ def create_next_round(tournament):
             TournamentParticipant.objects.filter(tournament=tournament, player=player1).update(score=models.F('score') + Constants.BYE_POINTS)
 
     return new_round
-def update_elo(player1, player2, result):
+def update_elo(player1, player2, result) -> tuple:
     K = Constants.K
     player1_elo = player1.rating
     player2_elo = player2.rating
 
     expected_player1 = 1 / (1 + 10 ** ((player2_elo - player1_elo) / 400))
     expected_player2 = 1 / (1 + 10 ** ((player1_elo - player2_elo) / 400))
-
+    player1_added = 0
+    player2_added = 0
     if result == "draw":
         player1.rating += K * (0.5 - expected_player1)
         player2.rating += K * (0.5 - expected_player2)
+        player1_added = K * (0.5 - expected_player1)
+        player2_added = K * (0.5 - expected_player2)
     elif result == "player1":
         player1.rating += K * (1 - expected_player1)
         player2.rating += K * (0 - expected_player2)
+        player1_added = K * (1 - expected_player1)
+        player2_added = K * (0 - expected_player2)
     elif result == "player2":
         player1.rating += K * (0 - expected_player1)
         player2.rating += K * (1 - expected_player2)
+        player1_added = K * (0 - expected_player2)
+        player2_added = K * (1 - expected_player2)
 
     player1.save()
     player2.save()
+    
+    return (player1_added,player2_added)
