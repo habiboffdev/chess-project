@@ -3,3 +3,4 @@ class Constants:
     K = 32
     SCORE_ADD_FOR_WIN_TOURNAMENT = 2
     SCORE_ADD_FOR_STRIKE_WIN_TOURNAMENT = 3
+    BYE_POINTS = 1

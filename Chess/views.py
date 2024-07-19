@@ -1,9 +1,9 @@
 from rest_framework import generics, status, serializers
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
-from django.contrib.auth.models import User
+from Users.models import User
 from .models import AvailablePlayer, Match, Tournament, TournamentParticipant, TournamentMatch, TournamentRound
-from .serializers import AvailablePlayerSerializer, MatchSerializer, TournamentSerializer, TournamentParticipantSerializer, TournamentMatchSerializer, TournamentLeaderboardSerializer
+from .serializers import AvailablePlayerSerializer, MatchSerializer, TournamentSerializer, TournamentParticipantSerializer, TournamentMatchSerializer, TournamentLeaderboardSerializer, TournamentMatchDetailSerializer
 from Chess.constants import Constants
 from django.db import models
 from .pairing import create_next_round, update_elo
@@ -16,8 +16,7 @@ class CancelAvailabilityView(generics.GenericAPIView):
     def post(self, request, *args, **kwargs):
         try:
             available_player = AvailablePlayer.objects.get(player=request.user)
-            available_player.is_available = False
-            available_player.save()
+            available_player.delete()
             return Response({"detail": "Player availability cancelled."}, status=status.HTTP_200_OK)
         except AvailablePlayer.DoesNotExist:
             return Response({"detail": "Player not found or already not available."}, status=status.HTTP_400_BAD_REQUEST)
@@ -139,6 +138,8 @@ class TournamentCreateView(generics.CreateAPIView):
     queryset = Tournament.objects.all()
     serializer_class = TournamentSerializer
     permission_classes = [IsAuthenticated,IsAdminUser]
+    
+    
 
 class TournamentListView(generics.ListAPIView):
     queryset = Tournament.objects.all()
@@ -203,8 +204,30 @@ class CreateNextRoundView(APIView):
 
     def post(self, request, tournament_id):
         try:
+            # check that tournaments is started
+            if not Tournament.objects.get(id=tournament_id).is_active:
+                return Response({"detail": "Tournament is not active."}, status=status.HTTP_400_BAD_REQUEST)
             tournament = Tournament.objects.get(id=tournament_id)
             new_round = create_next_round(tournament)
             return Response({"detail": f"Round {new_round.round_number} created successfully."}, status=status.HTTP_201_CREATED)
         except Tournament.DoesNotExist:
             return Response({"detail": "Tournament not found."}, status=status.HTTP_404_NOT_FOUND)
+        
+class UserCurrentMatchView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, tournament_id):
+        user = request.user
+        current_round = TournamentRound.objects.filter(tournament_id=tournament_id).order_by('-round_number').first()
+
+        if not current_round:
+            return Response({"detail": "No current round found for this tournament."}, status=status.HTTP_404_NOT_FOUND)
+
+        match = TournamentMatch.objects.filter(round=current_round, player1=user).first() or \
+                TournamentMatch.objects.filter(round=current_round, player2=user).first()
+
+        if not match:
+            return Response({"detail": "No match found for the current round."}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = TournamentMatchDetailSerializer(match)
+        return Response(serializer.data, status=status.HTTP_200_OK)

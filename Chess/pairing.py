@@ -41,7 +41,7 @@ def create_next_round(tournament):
             TournamentMatch.objects.create(round=new_round, player1=player1, player2=player2)
         else:
             # Bye round for unpaired player
-            TournamentParticipant.objects.filter(tournament=tournament, player=player1).update(score=models.F('score') + 1)
+            TournamentParticipant.objects.filter(tournament=tournament, player=player1).update(score=models.F('score') + Constants.BYE_POINTS)
 
     return new_round
 def update_elo(player1, player2, result):
