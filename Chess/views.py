@@ -3,7 +3,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from django.contrib.auth.models import User
 from .models import AvailablePlayer, Match, Tournament, TournamentParticipant, TournamentMatch, TournamentRound
-from .serializers import AvailablePlayerSerializer, MatchSerializer, TournamentSerializer, TournamentParticipantSerializer, TournamentMatchSerializer
+from .serializers import AvailablePlayerSerializer, MatchSerializer, TournamentSerializer, TournamentParticipantSerializer, TournamentMatchSerializer, TournamentLeaderboardSerializer
 from Chess.constants import Constants
 from django.db import models
 from .pairing import create_next_round, update_elo
@@ -30,20 +30,41 @@ class SetAvailablePlayerView(generics.CreateAPIView):
     def perform_create(self, serializer):
         serializer.save(player=self.request.user, is_available=True)
 
+
 class MatchCreateView(generics.CreateAPIView):
+    """
+    API view for creating a chess match.
+    """
     queryset = Match.objects.all()
     serializer_class = MatchSerializer
     permission_classes = [IsAuthenticated]
 
     def perform_create(self, serializer):
+        """
+        Perform the creation of a chess match.
+
+        Args:
+            serializer (MatchSerializer): The serializer for the match.
+
+        Returns:
+            Response: The response containing the match data.
+
+        Raises:
+            serializers.ValidationError: If the player is not available or already in a match.
+        """
         player1 = self.request.user
         print(player1)
+
+        # Check if player1 is available
         try:
             available_player1 = AvailablePlayer.objects.get(player=player1, is_available=True)
         except AvailablePlayer.DoesNotExist:
             raise serializers.ValidationError("Player is not available for a match.")
+
+        # Check if player1 is already in a match
         if self.queryset.filter(player1=player1, result_reported=False).exists():
             raise serializers.ValidationError("Player is already in a match.")
+
         # Find a suitable opponent for player1
         potential_opponents = AvailablePlayer.objects.filter(is_available=True).exclude(player=player1).order_by('player__rating')
 
@@ -73,6 +94,15 @@ class MatchCreateView(generics.CreateAPIView):
             return Response(match_data, status=status.HTTP_201_CREATED)
         else:
             raise serializers.ValidationError("No suitable opponents found.")
+
+class TournamentLeaderboardView(generics.ListAPIView):
+    serializer_class = TournamentLeaderboardSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        tournament_id = self.kwargs['tournament_id']
+        return TournamentParticipant.objects.filter(tournament_id=tournament_id).order_by('-score')
+
 
 class MatchResultView(generics.UpdateAPIView):
     queryset = Match.objects.all()

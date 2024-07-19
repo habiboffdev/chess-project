@@ -25,4 +25,9 @@ class TournamentMatchSerializer(serializers.ModelSerializer):
         model = TournamentMatch
         fields = ['id', 'round', 'player1', 'player2', 'winner', 'draw']
 
-    
+class TournamentLeaderboardSerializer(serializers.ModelSerializer):
+    player = serializers.StringRelatedField()
+
+    class Meta:
+        model = TournamentParticipant
+        fields = ['player__username', 'score']
