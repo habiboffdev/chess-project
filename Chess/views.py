@@ -1,9 +1,13 @@
 from rest_framework import generics, status, serializers
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from django.contrib.auth.models import User
-from .models import AvailablePlayer, Match
-from .serializers import AvailablePlayerSerializer, MatchSerializer
+from .models import AvailablePlayer, Match, Tournament, TournamentParticipant, TournamentMatch, TournamentRound
+from .serializers import AvailablePlayerSerializer, MatchSerializer, TournamentSerializer, TournamentParticipantSerializer, TournamentMatchSerializer
+from Chess.constants import Constants
+from django.db import models
+from .pairing import create_next_round, update_elo
+from rest_framework.views import APIView
 class CancelAvailabilityView(generics.GenericAPIView):
     queryset = AvailablePlayer.objects.all()
     serializer_class = AvailablePlayerSerializer
@@ -78,35 +82,99 @@ class MatchResultView(generics.UpdateAPIView):
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
         winner = User.objects.get(id=request.data.get('winner'))
-
-        if winner not in [instance.player1, instance.player2]:
+        draw = request.data.get('draw', False)
+        if winner not in [instance.player1, instance.player2] and draw == False:
             return Response({"detail": "Invalid winner."}, status=status.HTTP_400_BAD_REQUEST)
 
         instance.winner = winner
         instance.result_reported = True
+        instance.draw = draw
         instance.save()
 
         # Update ELO ratings
         player1 = instance.player1
         player2 = instance.player2
 
-        def update_elo(winner, loser):
-            K = 32
-            winner_elo = winner.profile.elo
-            loser_elo = loser.profile.elo
 
-            expected_winner = 1 / (1 + 10 ** ((loser_elo - winner_elo) / 400))
-            expected_loser = 1 / (1 + 10 ** ((winner_elo - loser_elo) / 400))
-
-            winner.profile.elo += K * (1 - expected_winner)
-            loser.profile.elo += K * (0 - expected_loser)
-
-            winner.profile.save()
-            loser.profile.save()
-
-        if winner == player1:
-            update_elo(player1, player2)
+        if draw == True:
+            update_elo(player1, player2, "draw")
+        elif winner == player1:
+            update_elo(player1, player2, "player1")
         else:
-            update_elo(player2, player1)
+            update_elo(player2, player1, "player2")
 
         return Response(status=status.HTTP_200_OK)
+
+class TournamentCreateView(generics.CreateAPIView):
+    queryset = Tournament.objects.all()
+    serializer_class = TournamentSerializer
+    permission_classes = [IsAuthenticated,IsAdminUser]
+
+class TournamentListView(generics.ListAPIView):
+    queryset = Tournament.objects.all()
+    serializer_class = TournamentSerializer
+
+class TournamentDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Tournament.objects.all()
+    serializer_class = TournamentSerializer
+    permission_classes = [IsAuthenticated,IsAdminUser]
+
+class TournamentParticipantCreateView(generics.CreateAPIView):
+    queryset = TournamentParticipant.objects.all()
+    serializer_class = TournamentParticipantSerializer
+    permission_classes = [IsAuthenticated]
+
+    def perform_create(self, serializer):
+        tournament_id = self.kwargs['tournament_id']
+        player = self.request.user
+        tournament = Tournament.objects.get(id=tournament_id)
+        serializer.save(tournament=tournament, player=player)
+
+class TournamentParticipantListView(generics.ListAPIView):
+    serializer_class = TournamentParticipantSerializer
+
+    def get_queryset(self):
+        tournament_id = self.kwargs['tournament_id']
+        return TournamentParticipant.objects.filter(tournament_id=tournament_id)
+
+
+class TournamentMatchResultView(generics.UpdateAPIView):
+    queryset = TournamentMatch.objects.all()
+    serializer_class = TournamentMatchSerializer
+    permission_classes = [IsAuthenticated]
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        winner_id = request.data.get('winner')
+        draw = request.data.get('draw', False)
+
+        if draw:
+            instance.draw = True
+            instance.save()
+            TournamentParticipant.objects.filter(tournament=instance.round.tournament, player=instance.player1).update(score=models.F('score') + Constants.SCORE_ADD_FOR_DRAW_TOURNAMENT)
+            TournamentParticipant.objects.filter(tournament=instance.round.tournament, player=instance.player2).update(score=models.F('score') + Constants.SCORE_ADD_FOR_DRAW_TOURNAMENT)
+        else:
+            winner = User.objects.get(id=winner_id)
+            if winner not in [instance.player1, instance.player2]:
+                return Response({"detail": "Invalid winner."}, status=status.HTTP_400_BAD_REQUEST)
+            instance.winner = winner
+            instance.save()
+
+            TournamentParticipant.objects.filter(tournament=instance.round.tournament, player=winner).update(score=models.F('score') + Constants.SCORE_ADD_FOR_WIN_TOURNAMENT)
+        if draw == True:
+            update_elo(instance.player1, instance.player2, "draw")
+        if winner == instance.player1:
+            update_elo(instance.player1, instance.player2, "player1")
+        if winner == instance.player2:
+            update_elo(instance.player1, instance.player2, "player2")
+        return Response(status=status.HTTP_200_OK)
+class CreateNextRoundView(APIView):
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    def post(self, request, tournament_id):
+        try:
+            tournament = Tournament.objects.get(id=tournament_id)
+            new_round = create_next_round(tournament)
+            return Response({"detail": f"Round {new_round.round_number} created successfully."}, status=status.HTTP_201_CREATED)
+        except Tournament.DoesNotExist:
+            return Response({"detail": "Tournament not found."}, status=status.HTTP_404_NOT_FOUND)
