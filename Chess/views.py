@@ -33,23 +33,40 @@ class MatchCreateView(generics.CreateAPIView):
 
     def perform_create(self, serializer):
         player1 = self.request.user
-
+        print(player1)
         try:
             available_player1 = AvailablePlayer.objects.get(player=player1, is_available=True)
         except AvailablePlayer.DoesNotExist:
             raise serializers.ValidationError("Player is not available for a match.")
-
+        if self.queryset.filter(player1=player1, result_reported=False).exists():
+            raise serializers.ValidationError("Player is already in a match.")
         # Find a suitable opponent for player1
-        potential_opponents = AvailablePlayer.objects.filter(is_available=True).exclude(player=player1).order_by('elo')
+        potential_opponents = AvailablePlayer.objects.filter(is_available=True).exclude(player=player1).order_by('player__rating')
 
         if potential_opponents.exists():
             player2 = potential_opponents.first().player
-            available_player1.is_available = False
-            available_player1.save()
+            available_player1.delete()
             available_player2 = AvailablePlayer.objects.get(player=player2)
-            available_player2.is_available = False
-            available_player2.save()
-            serializer.save(player1=player1, player2=player2)
+            available_player2.delete()
+            match = serializer.save(player1=player1, player2=player2)   
+            match_data = {
+                "match_id": match.id,
+                "player1": {
+                    "id": player1.id,
+                    "username": player1.username,
+                    "elo": player1.rating,
+                    "country": player1.country,
+                    "age": player1.age,
+                },
+                "player2": {
+                    "id": player2.id,
+                    "username": player2.username,
+                    "elo": player2.rating,
+                    "country": player2.country,
+                    "age": player2.age,
+                }
+            }
+            return Response(match_data, status=status.HTTP_201_CREATED)
         else:
             raise serializers.ValidationError("No suitable opponents found.")
 

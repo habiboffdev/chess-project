@@ -13,6 +13,10 @@ class UserSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         user = User.objects.create_user(**validated_data)
         return user
+    def is_valid(self, raise_exception=False):
+        if self.initial_data.get('email') and User.objects.filter(email=self.initial_data.get('email')).exists():
+            raise serializers.ValidationError('Email already exists.')
+        return super().is_valid(raise_exception=raise_exception)
 class UserChangeSerializer(serializers.ModelSerializer):
     class Meta:
         model = User

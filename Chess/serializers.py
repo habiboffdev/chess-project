@@ -9,4 +9,4 @@ class AvailablePlayerSerializer(serializers.ModelSerializer):
 class MatchSerializer(serializers.ModelSerializer):
     class Meta:
         model = Match
-        fields = '__all__'
+        fields = ['result_reported','winner']

@@ -94,7 +94,7 @@ class User(AbstractBaseUser, PermissionsMixin, BaseLayer):
     """
     To store users
     """
-    rating = models.BigIntegerField(default=0)
+    rating = models.BigIntegerField(default=1200)
     full_name = models.TextField(null=True, blank=True)
     agreement_time = models.DateTimeField(null=True, blank=True)
     username= models.CharField(max_length=100, unique=True)

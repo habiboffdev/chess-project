@@ -3,7 +3,7 @@ from .models import AvailablePlayer, Match
 # Register your models here.
 
 class AvailablePlayerAdmin(admin.ModelAdmin):
-    list_display = ['player', 'is_available', 'elo']
+    list_display = ['player', 'is_available', ]
     list_filter = ['is_available']
     search_fields = ['player__username']
 
