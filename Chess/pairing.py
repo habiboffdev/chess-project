@@ -71,5 +71,5 @@ def update_elo(player1, player2, result) -> tuple:
 
     player1.save()
     player2.save()
-    
+    print(player1_added,player2_added)
     return (player1_added,player2_added)

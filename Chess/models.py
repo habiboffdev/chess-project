@@ -39,9 +39,12 @@ class Tournament(BaseLayer):
     class Meta:
         verbose_name_plural = 'Tournaments'
         ordering = ['-start_date']
+        
+    def __str__(self):
+        return self.name
 class TournamentParticipant(models.Model):
     tournament = models.ForeignKey(Tournament, related_name='participants', on_delete=models.CASCADE)
-    player = models.ForeignKey(User, related_name='tournament_participations', on_delete=models.CASCADE)
+    player = models.OneToOneField(User, related_name='tournament_participations', on_delete=models.CASCADE)
     joined_at = models.DateTimeField(auto_now_add=True)
     score = models.IntegerField(default=0)
     def __str__(self):

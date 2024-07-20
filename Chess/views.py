@@ -171,6 +171,10 @@ class TournamentParticipantCreateView(generics.CreateAPIView):
         tournament_id = self.kwargs['tournament_id']
         player = self.request.user
         tournament = Tournament.objects.get(id=tournament_id)
+        if tournament.is_active:
+            return Response({"detail": "Tournament is already started."}, status=status.HTTP_400_BAD_REQUEST)
+        if TournamentParticipant.objects.filter(tournament=tournament, player=player).exists():
+            return Response({"detail": "Player already joined the tournament."}, status=status.HTTP_400_BAD_REQUEST)
         serializer.save(tournament=tournament, player=player)
 
 class TournamentParticipantListView(generics.ListAPIView):
@@ -192,6 +196,8 @@ class TournamentMatchResultView(generics.UpdateAPIView):
             return Response({"detail": "Match result already reported."}, status=status.HTTP_400_BAD_REQUEST)
         winner_id = request.data.get('winner')
         draw = request.data.get('draw', False)
+        if winner_id is None and not draw:
+            winner = User.objects.get(id=winner_id)
 
         if draw:
             instance.draw = True
@@ -208,12 +214,12 @@ class TournamentMatchResultView(generics.UpdateAPIView):
             TournamentParticipant.objects.filter(tournament=instance.round.tournament, player=winner).update(score=models.F('score') + Constants.SCORE_ADD_FOR_WIN_TOURNAMENT)
         if draw == True:
             change = update_elo(instance.player1, instance.player2, "draw")
-        if winner == instance.player1:
-            update_elo(instance.player1, instance.player2, "player1")
-        if winner == instance.player2:
-            update_elo(instance.player1, instance.player2, "player2")
-        instance.player1_rating_change = change[0]
-        instance.player2_rating_change = change[1]
+        elif winner == instance.player1:
+            change = update_elo(instance.player1, instance.player2, "player1")
+        elif winner == instance.player2:
+            change = update_elo(instance.player1, instance.player2, "player2")
+        instance.rating_change_winner = int(change[0])
+        instance.rating_change_loser = int(change[1])
         instance.save()
         return Response(status=status.HTTP_200_OK)
     def get(self, request, *args, **kwargs):
@@ -228,7 +234,7 @@ class CreateNextRoundView(APIView):
             # check that tournaments is started
             tournament = Tournament.objects.get(id=tournament_id)
             if not tournament.is_active:
-                if not tournament.start_date <= timezone.now() <= tournament.end_date:
+                if tournament.start_date <= timezone.now() <= tournament.end_date:
                     tournament.is_active = True
                     tournament.save()
                 else:
