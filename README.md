@@ -27,3 +27,17 @@
 2. There is some constants in ```Chess/constants.py```.
 3. There is also function for matchmaking without tournament.
 4. If you want to run test use ```pytest``` command
+5. I used JWT authentication, so if you can send request with bearer auth.
+6. To change the duration of access token you can change this in ``settings.py``:
+
+   ```python
+   SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
+    'SLIDING_TOKEN_REFRESH_LIFETIME': timedelta(days=1),
+    'SLIDING_TOKEN_LIFETIME': timedelta(days=30),
+    'SLIDING_TOKEN_REFRESH_LIFETIME_LATE_USER': timedelta(days=1),
+    'SLIDING_TOKEN_LIFETIME_LATE_USER': timedelta(days=30),
+   }
+
+7.
+
