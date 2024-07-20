@@ -8,6 +8,7 @@ from Chess.constants import Constants
 from django.db import models
 from .pairing import create_next_round, update_elo
 from rest_framework.views import APIView
+from django.utils import timezone
 class CancelAvailabilityView(generics.GenericAPIView):
     queryset = AvailablePlayer.objects.all()
     serializer_class = AvailablePlayerSerializer
@@ -110,7 +111,7 @@ class MatchResultView(generics.UpdateAPIView):
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
-        if instance.winner in [instance.player1, instance.player2] or instance.draw:
+        if (instance.winner in [instance.player1, instance.player2] or instance.draw) and not request.user.is_staff:
             return Response({"detail": "Match result already reported."}, status=status.HTTP_400_BAD_REQUEST)
         draw = request.data.get('draw', False)
         winner = instance.winner
@@ -187,7 +188,7 @@ class TournamentMatchResultView(generics.UpdateAPIView):
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
-        if instance.winner in [instance.player1, instance.player2] or instance.draw:
+        if (instance.winner in [instance.player1, instance.player2] or instance.draw) and not request.user.is_staff:
             return Response({"detail": "Match result already reported."}, status=status.HTTP_400_BAD_REQUEST)
         winner_id = request.data.get('winner')
         draw = request.data.get('draw', False)
@@ -225,9 +226,19 @@ class CreateNextRoundView(APIView):
     def post(self, request, tournament_id):
         try:
             # check that tournaments is started
-            if not Tournament.objects.get(id=tournament_id).is_active:
-                return Response({"detail": "Tournament is not active."}, status=status.HTTP_400_BAD_REQUEST)
             tournament = Tournament.objects.get(id=tournament_id)
+            if not tournament.is_active:
+                if not tournament.start_date <= timezone.now() <= tournament.end_date:
+                    tournament.is_active = True
+                    tournament.save()
+                else:
+                    return Response({"detail": "Tournament is not active."}, status=status.HTTP_400_BAD_REQUEST)
+            if tournament.is_active:
+                if tournament.end_date <= timezone.now():
+                    tournament.is_active = False
+                    tournament.save()
+                    return Response({"detail": "Tournament is ended."}, status=status.HTTP_400_BAD_REQUEST)
+            # tournament = Tournament.objects.get(id=tournament_id)
             new_round = create_next_round(tournament)
             return Response({"detail": f"Round {new_round.round_number} created successfully."}, status=status.HTTP_201_CREATED)
         except Tournament.DoesNotExist:

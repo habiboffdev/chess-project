@@ -147,7 +147,7 @@ class UserListView(APIView):
 class UserLeaderboardView(APIView):
     permission_classes = []
 
-    def get(self, request):
+    def get(self, request): 
         users = User.objects.all().order_by('-rating')
         serializer = UserChangeSerializer(users, many=True)
         return Response(serializer.data)
