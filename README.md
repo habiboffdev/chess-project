@@ -26,3 +26,4 @@
 1. If you want set user a admin, you must set ```is_staff=true``` when creating.
 2. There is some constants in ```Chess/constants.py```.
 3. There is also function for matchmaking without tournament.
+4. If you want to run test use ```pytest``` command
