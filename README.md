@@ -39,5 +39,5 @@
     'SLIDING_TOKEN_LIFETIME_LATE_USER': timedelta(days=30),
    }
 
-7.
+7. Also I added ELO rating.
 
